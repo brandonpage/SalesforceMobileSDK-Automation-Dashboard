@@ -1,6 +1,10 @@
 # Gradle files
 .gradle/
 build/
+*.jar
+*.properties
+gradlew
+gradlew.bat
 
 # Local configuration file (sdk path, etc)
 local.properties
@@ -32,3 +36,6 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# KMP
+*.klib
