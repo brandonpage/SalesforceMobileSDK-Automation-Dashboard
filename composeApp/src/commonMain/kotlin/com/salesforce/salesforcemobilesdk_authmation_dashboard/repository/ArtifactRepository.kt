@@ -3,10 +3,30 @@ package com.salesforce.salesforcemobilesdk_authmation_dashboard.repository
 import com.salesforce.salesforcemobilesdk_authmation_dashboard.network.GitHubClient
 import com.salesforce.salesforcemobilesdk_authmation_dashboard.service.ZipService
 
+import com.salesforce.salesforcemobilesdk_authmation_dashboard.network.model.Artifact
+import com.salesforce.salesforcemobilesdk_authmation_dashboard.network.model.WorkflowRun
+
 class ArtifactRepository(
     private val gitHubClient: GitHubClient,
     private val zipService: ZipService
 ) {
+    suspend fun getWorkflowRuns(owner: String, repo: String, token: String?): List<WorkflowRun> {
+        return gitHubClient.getWorkflowRuns(owner, repo, token)
+    }
+
+    suspend fun getArtifacts(owner: String, repo: String, runId: Long, token: String?): List<Artifact> {
+        return gitHubClient.getArtifacts(owner, repo, runId, token)
+    }
+
+    suspend fun downloadAndExtractArtifact(owner: String, repo: String, artifactId: Long, token: String?): Map<String, String> {
+        val zipBytes = gitHubClient.downloadArtifact(owner, repo, artifactId.toString(), token)
+        val extractedFiles = zipService.unzip(zipBytes)
+        
+        return extractedFiles.mapValues { entry ->
+            entry.value.decodeToString()
+        }
+    }
+
     suspend fun downloadAndExtractArtifact(url: String, token: String? = null): Map<String, String> {
         val cleanUrl = url.trim()
         val (owner, repo, artifactId) = parseArtifactUrl(cleanUrl)

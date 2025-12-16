@@ -1,6 +1,11 @@
 package com.salesforce.salesforcemobilesdk_authmation_dashboard.network
 
+import com.salesforce.salesforcemobilesdk_authmation_dashboard.network.model.Artifact
+import com.salesforce.salesforcemobilesdk_authmation_dashboard.network.model.ArtifactsResponse
+import com.salesforce.salesforcemobilesdk_authmation_dashboard.network.model.WorkflowRun
+import com.salesforce.salesforcemobilesdk_authmation_dashboard.network.model.WorkflowRunsResponse
 import io.ktor.client.HttpClient
+import io.ktor.client.call.body
 import io.ktor.client.plugins.expectSuccess
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -11,9 +16,56 @@ import io.ktor.http.HttpStatusCode
 
 class GitHubClient(private val httpClient: HttpClient) {
 
+    private fun cleanToken(token: String): String {
+        return token.trim().removePrefix("Bearer ").trim()
+    }
+
+    suspend fun getWorkflowRuns(owner: String, repo: String, token: String?): List<WorkflowRun> {
+        val cleanToken = token?.let { cleanToken(it) }
+        val url = "https://api.github.com/repos/$owner/$repo/actions/runs"
+        val response = httpClient.get(url) {
+            cleanToken?.takeIf { it.isNotBlank() }?.let {
+                header(HttpHeaders.Authorization, "Bearer $it")
+            }
+            header(HttpHeaders.Accept, "application/vnd.github+json")
+            header(HttpHeaders.UserAgent, "SalesforceMobileSDK-Automation-Dashboard")
+            header("X-GitHub-Api-Version", "2022-11-28")
+        }
+        
+        if (response.status != HttpStatusCode.OK) {
+             val errorBody = response.readBytes().decodeToString()
+             throw Exception("Failed to fetch workflow runs: ${response.status} - $errorBody")
+        }
+        
+        return response.body<WorkflowRunsResponse>().workflowRuns
+    }
+
+    suspend fun getArtifacts(owner: String, repo: String, runId: Long, token: String?): List<Artifact> {
+        val cleanToken = token?.let { cleanToken(it) }
+        val url = "https://api.github.com/repos/$owner/$repo/actions/runs/$runId/artifacts"
+        println("Fetching artifacts from: $url")
+        val response = httpClient.get(url) {
+            cleanToken?.takeIf { it.isNotBlank() }?.let {
+                header(HttpHeaders.Authorization, "Bearer $it")
+            }
+            header(HttpHeaders.Accept, "application/vnd.github+json")
+            header(HttpHeaders.UserAgent, "SalesforceMobileSDK-Automation-Dashboard")
+            header("X-GitHub-Api-Version", "2022-11-28")
+        }
+        
+        if (response.status != HttpStatusCode.OK) {
+             val errorBody = response.readBytes().decodeToString()
+             throw Exception("Failed to fetch artifacts: ${response.status} - $errorBody")
+        }
+        
+        val artifactsResponse = response.body<ArtifactsResponse>()
+        println("API returned ${artifactsResponse.totalCount} artifacts (List size: ${artifactsResponse.artifacts.size})")
+        return artifactsResponse.artifacts
+    }
+
     suspend fun downloadArtifact(owner: String, repo: String, artifactId: String, token: String? = null): ByteArray {
         val url = "https://api.github.com/repos/$owner/$repo/actions/artifacts/$artifactId/zip"
-        val cleanToken = token?.trim()?.removePrefix("Bearer ")?.trim()
+        val cleanToken = token?.let { cleanToken(it) }
         
         println("Downloading artifact from: $url")
         println("Token provided: ${if (cleanToken.isNullOrBlank()) "NO" else "YES (Length: ${cleanToken.length})"}")
