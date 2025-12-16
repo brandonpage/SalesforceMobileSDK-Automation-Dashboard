@@ -10,7 +10,8 @@ data class TableData(
     val libraries: List<String>,
     val columns: List<String>,
     val results: Map<String, Map<String, CellData?>>,
-    val status: String? = null
+    val status: String? = null,
+    val id: Long? = null
 )
 
 data class CellData(

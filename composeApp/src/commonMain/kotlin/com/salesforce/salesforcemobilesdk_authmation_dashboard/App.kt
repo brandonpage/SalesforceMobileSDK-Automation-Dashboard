@@ -21,6 +21,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,6 +35,8 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import com.salesforce.salesforcemobilesdk_authmation_dashboard.manager.TokenManager
 import com.salesforce.salesforcemobilesdk_authmation_dashboard.model.DashboardState
@@ -52,6 +55,7 @@ fun App() {
         var githubToken by remember { mutableStateOf(TokenManager.getToken() ?: "") }
         var isTokenSaved by remember { mutableStateOf(TokenManager.getToken() != null) }
         var isLoading by remember { mutableStateOf(false) }
+        var isAutoRefreshEnabled by remember { mutableStateOf(false) }
         var errorMessage by remember { mutableStateOf<String?>(null) }
         var dashboardState by remember { mutableStateOf<DashboardState?>(null) }
 
@@ -73,6 +77,34 @@ fun App() {
                 ArtifactRepository(GitHubClient(httpClient), getZipService()),
                 XmlParsingService()
             )
+        }
+
+        // Auto-refresh logic
+        LaunchedEffect(isAutoRefreshEnabled) {
+            if (isAutoRefreshEnabled) {
+                while (isActive) {
+                    // Don't refresh if already loading manually
+                    if (!isLoading) {
+                        try {
+                            // Silent update if data already exists
+                            if (dashboardState == null) isLoading = true
+                            
+                            val newState = testResultsRepository.loadDashboardData(githubToken, dashboardState)
+                            dashboardState = newState
+                            errorMessage = null
+                        } catch (e: Exception) {
+                            if (dashboardState == null) {
+                                errorMessage = e.message
+                            } else {
+                                println("Auto-refresh failed: ${e.message}")
+                            }
+                        } finally {
+                            isLoading = false
+                        }
+                    }
+                    delay(30_000) // 30 seconds
+                }
+            }
         }
 
         // Initial load if token exists
@@ -103,8 +135,24 @@ fun App() {
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("SalesforceMobileSDK Automation Dashboard (v2)", style = MaterialTheme.typography.headlineMedium)
-            Spacer(modifier = Modifier.height(24.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
+            ) {
+                Text("SalesforceMobileSDK Automation Dashboard (v2)", style = MaterialTheme.typography.headlineMedium)
+                
+                if (isTokenSaved) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Auto-refresh (30s)", style = MaterialTheme.typography.bodyMedium)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Switch(
+                            checked = isAutoRefreshEnabled,
+                            onCheckedChange = { isAutoRefreshEnabled = it }
+                        )
+                    }
+                }
+            }
 
             if (!isTokenSaved) {
                 TokenEntryScreen(
@@ -130,7 +178,7 @@ fun App() {
                             isLoading = true
                             errorMessage = null
                             try {
-                                dashboardState = testResultsRepository.loadDashboardData(githubToken)
+                                dashboardState = testResultsRepository.loadDashboardData(githubToken, dashboardState)
                             } catch (e: Exception) {
                                 errorMessage = e.message
                             } finally {
@@ -205,7 +253,7 @@ fun App() {
                                         isLoading = true
                                         errorMessage = null
                                         try {
-                                            dashboardState = testResultsRepository.loadDashboardData(githubToken)
+                                            dashboardState = testResultsRepository.loadDashboardData(githubToken, dashboardState)
                                         } catch (e: Exception) {
                                             errorMessage = e.message
                                         } finally {

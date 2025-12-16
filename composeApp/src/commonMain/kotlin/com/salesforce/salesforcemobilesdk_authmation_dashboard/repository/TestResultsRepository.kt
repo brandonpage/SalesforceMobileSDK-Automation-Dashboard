@@ -25,11 +25,11 @@ class TestResultsRepository(
         }
     }
 
-    suspend fun loadDashboardData(token: String?): DashboardState {
+    suspend fun loadDashboardData(token: String?, currentState: DashboardState? = null): DashboardState {
         println("Starting loadDashboardData (v3 - Multi-platform)")
         
-        val androidResults = loadAndroidResults(token)
-        val iosResults = loadIosResults(token)
+        val androidResults = loadAndroidResults(token, currentState?.androidResults)
+        val iosResults = loadIosResults(token, currentState?.iosResults)
         
         return DashboardState(
             androidResults = androidResults,
@@ -37,7 +37,7 @@ class TestResultsRepository(
         )
     }
 
-    private suspend fun loadAndroidResults(token: String?): TableData {
+    private suspend fun loadAndroidResults(token: String?, currentTable: TableData?): TableData {
         val owner = "brandonpage"
         val repo = "SalesforceMobileSDK-Android"
         val targetLibraries = listOf(
@@ -49,9 +49,23 @@ class TestResultsRepository(
             "SalesforceReact"
         )
         val apiLevels = (28..36).toList().map { it.toString() }
-        val resultsMap = createEmptyResultsMap(targetLibraries, apiLevels)
         
-        val (runStatus, artifacts) = getNightlyRunAndArtifacts(owner, repo, token)
+        val (runId, runStatus, artifacts) = getNightlyRunAndArtifacts(owner, repo, token)
+        
+        // Cache Check: If ID matches and we already have completed results, return cached
+        if (currentTable != null && currentTable.id == runId && currentTable.status == "completed" && runStatus == "completed") {
+             println("Cache Hit for Android: Run $runId is already loaded and completed.")
+             return currentTable
+        }
+        
+        // If ID matches and status is same (e.g. still in_progress), we can also skip unless we want to poll for progress
+        // But usually in_progress means no results yet.
+        if (currentTable != null && currentTable.id == runId && currentTable.status == runStatus) {
+             println("Cache Hit for Android: Run $runId status unchanged ($runStatus).")
+             return currentTable
+        }
+
+        val resultsMap = createEmptyResultsMap(targetLibraries, apiLevels)
         
         artifacts.forEach { artifact ->
             val libraryName = targetLibraries.find { artifact.name.equals("test-results-$it", ignoreCase = true) }
@@ -72,10 +86,10 @@ class TestResultsRepository(
             }
         }
         
-        return TableData("Android", targetLibraries, apiLevels, resultsMap, runStatus)
+        return TableData("Android", targetLibraries, apiLevels, resultsMap, runStatus, runId)
     }
 
-    private suspend fun loadIosResults(token: String?): TableData {
+    private suspend fun loadIosResults(token: String?, currentTable: TableData?): TableData {
         val owner = "brandonpage"
         val repo = "SalesforceMobileSDK-iOS"
         val targetLibraries = listOf(
@@ -86,9 +100,21 @@ class TestResultsRepository(
             "MobileSync"
         )
         val versions = listOf("17", "18", "26")
-        val resultsMap = createEmptyResultsMap(targetLibraries, versions)
         
-        val (runStatus, artifacts) = getNightlyRunAndArtifacts(owner, repo, token)
+        val (runId, runStatus, artifacts) = getNightlyRunAndArtifacts(owner, repo, token)
+
+        // Cache Check
+        if (currentTable != null && currentTable.id == runId && currentTable.status == "completed" && runStatus == "completed") {
+             println("Cache Hit for iOS: Run $runId is already loaded and completed.")
+             return currentTable
+        }
+
+        if (currentTable != null && currentTable.id == runId && currentTable.status == runStatus) {
+             println("Cache Hit for iOS: Run $runId status unchanged ($runStatus).")
+             return currentTable
+        }
+
+        val resultsMap = createEmptyResultsMap(targetLibraries, versions)
         
         artifacts.forEach { artifact ->
             val regex = Regex("test-results-(.+)-ios\\^(.+)")
@@ -112,10 +138,10 @@ class TestResultsRepository(
             }
         }
         
-        return TableData("iOS", targetLibraries, versions, resultsMap, runStatus)
+        return TableData("iOS", targetLibraries, versions, resultsMap, runStatus, runId)
     }
 
-    private suspend fun getNightlyRunAndArtifacts(owner: String, repo: String, token: String?): Pair<String?, List<com.salesforce.salesforcemobilesdk_authmation_dashboard.network.model.Artifact>> {
+    private suspend fun getNightlyRunAndArtifacts(owner: String, repo: String, token: String?): Triple<Long?, String?, List<com.salesforce.salesforcemobilesdk_authmation_dashboard.network.model.Artifact>> {
         try {
             println("Fetching workflow runs for $owner/$repo...")
             val runs = artifactRepository.getWorkflowRuns(owner, repo, token)
@@ -129,20 +155,20 @@ class TestResultsRepository(
                 // If it's running, return it immediately regardless of artifacts (might be partial)
                 if (run.status == "in_progress" || run.status == "queued") {
                      println("Found active run for $owner/$repo: ${run.id} (${run.status})")
-                     return Pair(run.status, artifacts)
+                     return Triple(run.id, run.status, artifacts)
                 }
 
                 // If completed, only return if it has artifacts
                 if (run.status == "completed" && artifacts.isNotEmpty()) {
                     println("Found valid completed run for $owner/$repo: ${run.id}")
-                    return Pair(run.status, artifacts)
+                    return Triple(run.id, run.status, artifacts)
                 }
             }
         } catch (e: Exception) {
             println("Error fetching artifacts for $owner/$repo: ${e.message}")
         }
         println("No valid Nightly Tests run found for $owner/$repo")
-        return Pair(null, emptyList())
+        return Triple(null, null, emptyList())
     }
 
     private fun createEmptyResultsMap(libraries: List<String>, columns: List<String>): MutableMap<String, MutableMap<String, CellData?>> {
