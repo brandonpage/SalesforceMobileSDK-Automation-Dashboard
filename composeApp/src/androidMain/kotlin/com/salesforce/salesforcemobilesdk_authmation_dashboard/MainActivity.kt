@@ -7,8 +7,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 
-import com.salesforce.salesforcemobilesdk_authmation_dashboard.manager.TokenManager
+import com.salesforce.salesforcemobilesdk_authmation_dashboard.manager.SettingsManager
 import com.salesforce.salesforcemobilesdk_authmation_dashboard.manager.StateManager
+import com.salesforce.salesforcemobilesdk_authmation_dashboard.manager.TokenManager
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -17,6 +18,7 @@ class MainActivity : ComponentActivity() {
         
         TokenManager.init(applicationContext)
         StateManager.init(applicationContext)
+        SettingsManager.init(applicationContext)
 
         setContent {
             App()
