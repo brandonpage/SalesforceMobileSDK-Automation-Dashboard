@@ -160,16 +160,10 @@ class TestResultsRepository(
         
         val (runId, runStatus, artifacts) = getNightlyRunAndArtifacts(owner, repo, token)
         
-        // Cache Check: If ID matches and we already have completed results, return cached
+        // Cache Check: Only cache if the run is completed
+        // For in_progress runs, always fetch fresh data to get latest artifacts
         if (currentTable != null && currentTable.id == runId && currentTable.status == "completed" && runStatus == "completed") {
              println("Cache Hit for Android: Run $runId is already loaded and completed.")
-             return currentTable
-        }
-        
-        // If ID matches and status is same (e.g. still in_progress), we can also skip unless we want to poll for progress
-        // But usually in_progress means no results yet.
-        if (currentTable != null && currentTable.id == runId && currentTable.status == runStatus) {
-             println("Cache Hit for Android: Run $runId status unchanged ($runStatus).")
              return currentTable
         }
 
@@ -198,7 +192,8 @@ class TestResultsRepository(
     }
 
     private suspend fun loadIosResults(token: String?, currentTable: TableData?): TableData {
-        val owner = "forcedotcom"
+//        val owner = "forcedotcom"
+        val owner = "brandonpage"
         val repo = "SalesforceMobileSDK-iOS"
         val targetLibraries = listOf(
             "SalesforceAnalytics",
@@ -211,14 +206,10 @@ class TestResultsRepository(
         
         val (runId, runStatus, artifacts) = getNightlyRunAndArtifacts(owner, repo, token)
 
-        // Cache Check
+        // Cache Check: Only cache if the run is completed
+        // For in_progress runs, always fetch fresh data to get latest artifacts
         if (currentTable != null && currentTable.id == runId && currentTable.status == "completed" && runStatus == "completed") {
              println("Cache Hit for iOS: Run $runId is already loaded and completed.")
-             return currentTable
-        }
-
-        if (currentTable != null && currentTable.id == runId && currentTable.status == runStatus) {
-             println("Cache Hit for iOS: Run $runId status unchanged ($runStatus).")
              return currentTable
         }
 

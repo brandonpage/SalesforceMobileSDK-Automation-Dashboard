@@ -33,6 +33,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +48,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -450,6 +457,9 @@ fun App() {
                                     }
                                 }
 
+                                // Common library doesn't exist on Android - always gray it out for Android columns
+                                library == "Common" && column.contains("Android") -> MaterialTheme.colorScheme.surfaceVariant
+
                                 isRunInProgress -> if (isDarkTheme) WarningYellowDark else WarningYellow
                                 else -> MaterialTheme.colorScheme.surfaceVariant // Was LightGray
                             }
@@ -458,6 +468,9 @@ fun App() {
                                 cellData != null -> {
                                     if (isDarkTheme) Color.Black else Color.White
                                 }
+
+                                // Common library doesn't exist on Android - use regular text color
+                                library == "Common" && column.contains("Android") -> MaterialTheme.colorScheme.onSurfaceVariant
 
                                 isRunInProgress -> Color.Black
                                 else -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -496,11 +509,26 @@ fun App() {
                                         }
                                     }
 
+                                    // Common library doesn't exist on Android - always show dash
+                                    library == "Common" && column.contains("Android") -> {
+                                        Text("-", color = contentColor)
+                                    }
+
                                     isRunInProgress -> {
+                                        val infiniteTransition = rememberInfiniteTransition()
+                                        val alpha by infiniteTransition.animateFloat(
+                                            initialValue = 0.3f,
+                                            targetValue = 1f,
+                                            animationSpec = infiniteRepeatable(
+                                                animation = tween(1000),
+                                                repeatMode = RepeatMode.Reverse
+                                            )
+                                        )
                                         Text(
-                                            "...",
+                                            "In Progress",
                                             color = contentColor,
-                                            fontWeight = FontWeight.Bold
+                                            fontStyle = FontStyle.Italic,
+                                            modifier = Modifier.graphicsLayer(alpha = alpha)
                                         )
                                     }
 
