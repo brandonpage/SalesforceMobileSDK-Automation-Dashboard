@@ -39,6 +39,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import com.salesforce.salesforcemobilesdk_authmation_dashboard.manager.TokenManager
+import com.salesforce.salesforcemobilesdk_authmation_dashboard.manager.StateManager
 import com.salesforce.salesforcemobilesdk_authmation_dashboard.model.DashboardState
 import com.salesforce.salesforcemobilesdk_authmation_dashboard.model.TableData
 import com.salesforce.salesforcemobilesdk_authmation_dashboard.network.GitHubClient
@@ -55,9 +56,10 @@ fun App() {
         var githubToken by remember { mutableStateOf(TokenManager.getToken() ?: "") }
         var isTokenSaved by remember { mutableStateOf(TokenManager.getToken() != null) }
         var isLoading by remember { mutableStateOf(false) }
-        var isAutoRefreshEnabled by remember { mutableStateOf(false) }
+        var isAutoRefreshEnabled by remember { mutableStateOf(true) }
         var errorMessage by remember { mutableStateOf<String?>(null) }
-        var dashboardState by remember { mutableStateOf<DashboardState?>(null) }
+        // Load initial state from disk
+        var dashboardState by remember { mutableStateOf(StateManager.loadState()) }
 
         val httpClient = remember {
             HttpClient {
@@ -91,6 +93,7 @@ fun App() {
                             
                             val newState = testResultsRepository.loadDashboardData(githubToken, dashboardState)
                             dashboardState = newState
+                            StateManager.saveState(newState)
                             errorMessage = null
                         } catch (e: Exception) {
                             if (dashboardState == null) {
@@ -113,7 +116,9 @@ fun App() {
                 isLoading = true
                 errorMessage = null
                 try {
-                    dashboardState = testResultsRepository.loadDashboardData(githubToken)
+                    val newState = testResultsRepository.loadDashboardData(githubToken)
+                    dashboardState = newState
+                    StateManager.saveState(newState)
                 } catch (e: Exception) {
                     errorMessage = e.message ?: "Unknown error occurred"
                     e.printStackTrace()
@@ -140,7 +145,7 @@ fun App() {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)
             ) {
-                Text("SalesforceMobileSDK Automation Dashboard (v2)", style = MaterialTheme.typography.headlineMedium)
+                Text("Mobile SDK Automation Dashboard", style = MaterialTheme.typography.headlineMedium)
                 
                 if (isTokenSaved) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -178,7 +183,9 @@ fun App() {
                             isLoading = true
                             errorMessage = null
                             try {
-                                dashboardState = testResultsRepository.loadDashboardData(githubToken, dashboardState)
+                                val newState = testResultsRepository.loadDashboardData(githubToken, dashboardState)
+                                dashboardState = newState
+                                StateManager.saveState(newState)
                             } catch (e: Exception) {
                                 errorMessage = e.message
                             } finally {
@@ -199,13 +206,13 @@ fun App() {
                                 .fillMaxWidth()
                                 .verticalScroll(rememberScrollState())
                         ) {
-                            state.androidResults?.let { table ->
+                            state.combinedResults?.let { table ->
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.padding(bottom = 8.dp)
                                 ) {
                                     Text(
-                                        text = "Android Results",
+                                        text = "Unit Test Results",
                                         style = MaterialTheme.typography.titleLarge
                                     )
                                     if (table.status == "in_progress" || table.status == "queued") {
@@ -221,49 +228,6 @@ fun App() {
                                 }
                                 DashboardGrid(table)
                                 Spacer(modifier = Modifier.height(24.dp))
-                            }
-
-                            state.iosResults?.let { table ->
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.padding(bottom = 8.dp)
-                                ) {
-                                    Text(
-                                        text = "iOS Results",
-                                        style = MaterialTheme.typography.titleLarge
-                                    )
-                                    if (table.status == "in_progress" || table.status == "queued") {
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            "Run In Progress...",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                }
-                                DashboardGrid(table)
-                                Spacer(modifier = Modifier.height(24.dp))
-                            }
-
-                            Button(
-                                onClick = {
-                                    scope.launch {
-                                        isLoading = true
-                                        errorMessage = null
-                                        try {
-                                            dashboardState = testResultsRepository.loadDashboardData(githubToken, dashboardState)
-                                        } catch (e: Exception) {
-                                            errorMessage = e.message
-                                        } finally {
-                                            isLoading = false
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.align(Alignment.CenterHorizontally)
-                            ) {
-                                Text("Refresh")
                             }
                             
                             Spacer(modifier = Modifier.height(50.dp)) // Bottom padding
@@ -282,17 +246,16 @@ fun TokenEntryScreen(
     onSave: () -> Unit
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        Text("Welcome! Please enter your GitHub Token to continue.")
+        Text("Welcome! Please enter your GitHub Personal Access Token to continue.  No permissions are required.")
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
             value = token,
             onValueChange = onTokenChange,
             label = { Text("GitHub Token") },
-            placeholder = { Text("ghp_...") },
+            placeholder = { Text("github_pat_...") },
             supportingText = { 
                 Column {
-                    Text("Requires 'repo' scope for private repos or actions access.")
-                    Text("Note: Token expiration must be set to 366 days or less.", color = MaterialTheme.colorScheme.primary)
+                    Text("Note: Token expiration must be set to 365 days or less.", color = MaterialTheme.colorScheme.primary)
                 }
             },
             modifier = Modifier.fillMaxWidth()
@@ -306,8 +269,8 @@ fun TokenEntryScreen(
 
 @Composable
 fun DashboardGrid(tableData: TableData) {
-    val cellWidth = 80.dp
-    val cellHeight = 40.dp
+    val cellWidth = 100.dp
+    val cellHeight = 60.dp
     val headerColor = MaterialTheme.colorScheme.surfaceVariant
     val horizontalScrollState = rememberScrollState()
 
@@ -331,15 +294,24 @@ fun DashboardGrid(tableData: TableData) {
             }
 
             tableData.columns.forEach { column ->
-                Box(
-                    modifier = Modifier
-                        .width(cellWidth)
-                        .height(cellHeight)
-                        .background(headerColor)
-                        .border(1.dp, Color.LightGray),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(column, fontWeight = FontWeight.Bold)
+                if (column == "SEPARATOR") {
+                    Spacer(modifier = Modifier.width(24.dp))
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .width(cellWidth)
+                            .height(cellHeight)
+                            .background(headerColor)
+                            .border(1.dp, Color.LightGray),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = column, 
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
             }
         }
@@ -362,32 +334,36 @@ fun DashboardGrid(tableData: TableData) {
 
                 // Result Cells
                 tableData.columns.forEach { column ->
-                    val cellData = tableData.results[library]?.get(column)
-                    val isRunInProgress = tableData.status == "in_progress" || tableData.status == "queued"
-                    
-                    val backgroundColor = when {
-                        cellData != null -> if (cellData.isSuccess) Color(0xFF4CAF50) else Color(0xFFF44336)
-                        isRunInProgress -> Color(0xFFFFF59D) // Light Yellow
-                        else -> Color.LightGray
-                    }
-                    
-                    Box(
-                        modifier = Modifier
-                            .width(cellWidth)
-                            .height(cellHeight)
-                            .background(backgroundColor)
-                            .border(1.dp, Color.LightGray),
-                        contentAlignment = Alignment.Center
-                    ) {
-                         when {
-                            cellData != null -> {
-                                val text = if (cellData.isSuccess) "PASS" else "FAIL"
-                                Text(text, color = Color.White, style = MaterialTheme.typography.labelSmall)
+                    if (column == "SEPARATOR") {
+                        Spacer(modifier = Modifier.width(24.dp))
+                    } else {
+                        val cellData = tableData.results[library]?.get(column)
+                        val isRunInProgress = tableData.status == "in_progress" || tableData.status == "queued"
+                        
+                        val backgroundColor = when {
+                            cellData != null -> if (cellData.isSuccess) Color(0xFF4CAF50) else Color(0xFFF44336)
+                            isRunInProgress -> Color(0xFFFFF59D) // Light Yellow
+                            else -> Color.LightGray
+                        }
+                        
+                        Box(
+                            modifier = Modifier
+                                .width(cellWidth)
+                                .height(cellHeight)
+                                .background(backgroundColor)
+                                .border(1.dp, Color.LightGray),
+                            contentAlignment = Alignment.Center
+                        ) {
+                             when {
+                                cellData != null -> {
+                                    val text = if (cellData.isSuccess) "PASS" else "FAIL"
+                                    Text(text, color = Color.White, style = MaterialTheme.typography.labelSmall)
+                                }
+                                isRunInProgress -> {
+                                    Text("...", color = Color.Black, fontWeight = FontWeight.Bold)
+                                }
+                                else -> Text("-", color = Color.DarkGray)
                             }
-                            isRunInProgress -> {
-                                Text("...", color = Color.Black, fontWeight = FontWeight.Bold)
-                            }
-                            else -> Text("-", color = Color.DarkGray)
                         }
                     }
                 }

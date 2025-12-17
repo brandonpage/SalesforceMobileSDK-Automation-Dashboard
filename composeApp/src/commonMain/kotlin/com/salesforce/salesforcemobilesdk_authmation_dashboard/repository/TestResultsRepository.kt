@@ -7,6 +7,8 @@ import com.salesforce.salesforcemobilesdk_authmation_dashboard.model.TestSuite
 import com.salesforce.salesforcemobilesdk_authmation_dashboard.service.XmlParsingService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
 class TestResultsRepository(
     private val artifactRepository: ArtifactRepository,
@@ -30,11 +32,117 @@ class TestResultsRepository(
         
         val androidResults = loadAndroidResults(token, currentState?.androidResults)
         val iosResults = loadIosResults(token, currentState?.iosResults)
+        val combinedResults = combineResults(androidResults, iosResults)
         
         return DashboardState(
             androidResults = androidResults,
-            iosResults = iosResults
+            iosResults = iosResults,
+            combinedResults = combinedResults
         )
+    }
+
+    @OptIn(ExperimentalTime::class)
+    private fun combineResults(android: TableData?, ios: TableData?): TableData {
+        // Define Columns
+        val androidColumns = android?.columns?.map { apiLevel ->
+            val ver = getAndroidVersion(apiLevel)
+            "Android $ver\n(API $apiLevel)"
+        } ?: emptyList()
+
+        val iosColumns = ios?.columns?.map { ver ->
+            "iOS $ver"
+        } ?: emptyList()
+
+        val columns = listOf("SEPARATOR") + androidColumns + "SEPARATOR" + iosColumns
+
+        // Define Name Mapping
+        fun mapLibraryName(name: String, isIos: Boolean): String {
+            return when (name) {
+                "SalesforceAnalytics" -> "Analytics"
+                "SalesforceSDK" -> "SalesforceSDK/Core"
+                "SalesforceSDKCommon" -> "Common"
+                "SalesforceSDKCore" -> "SalesforceSDK/Core"
+                "SmartStore" -> "SmartStore"
+                "MobileSync" -> "MobileSync"
+                "SalesforceHybrid" -> "Hybrid"
+                "SalesforceReact" -> "React"
+                else -> name
+            }
+        }
+
+        val desiredOrder = listOf("Analytics", "SalesforceSDK/Core", "Common", "SmartStore", "MobileSync", "Hybrid", "React")
+
+        // Collect all unique libraries from both, mapped to new names
+        val androidLibsMapped = android?.libraries?.map { it to mapLibraryName(it, false) } ?: emptyList()
+        val iosLibsMapped = ios?.libraries?.map { it to mapLibraryName(it, true) } ?: emptyList()
+
+        val allDisplayNames = (androidLibsMapped.map { it.second } + iosLibsMapped.map { it.second })
+            .distinct()
+            .sortedBy { desiredOrder.indexOf(it).takeIf { idx -> idx >= 0 } ?: Int.MAX_VALUE }
+
+        // Build Results Map
+        val resultsMap = mutableMapOf<String, MutableMap<String, CellData?>>()
+
+        allDisplayNames.forEach { displayName ->
+            resultsMap[displayName] = mutableMapOf()
+            
+            // Fill Android Data
+            android?.columns?.forEachIndexed { index, oldCol -> 
+                val newCol = androidColumns[index]
+                // Find original android lib that maps to this display name
+                // Note: There could theoretically be collisions if multiple android libs mapped to same name, 
+                // but currently SalesforceSDK -> SDK is unique on Android.
+                val originalLib = androidLibsMapped.find { it.second == displayName }?.first
+                
+                val cell = if (originalLib != null) android.results[originalLib]?.get(oldCol) else null
+                resultsMap[displayName]!![newCol] = cell
+            }
+
+            // Fill Separator
+            resultsMap[displayName]!!["SEPARATOR"] = null
+
+            // Fill iOS Data
+            ios?.columns?.forEachIndexed { index, oldCol ->
+                val newCol = iosColumns[index]
+                // Find original ios lib that maps to this display name
+                // iOS has SDKCommon -> SDK. 
+                val originalLib = iosLibsMapped.find { it.second == displayName }?.first
+                
+                val cell = if (originalLib != null) ios.results[originalLib]?.get(oldCol) else null
+                resultsMap[displayName]!![newCol] = cell
+            }
+        }
+
+        val status = if (android?.status == "in_progress" || android?.status == "queued" ||
+                         ios?.status == "in_progress" || ios?.status == "queued") {
+            "in_progress"
+        } else {
+            "completed"
+        }
+
+        return TableData(
+            title = "Combined Results",
+            libraries = allDisplayNames,
+            columns = columns,
+            results = resultsMap,
+            status = status,
+            id = Clock.System.now().toEpochMilliseconds(),
+        )
+    }
+
+    private fun getAndroidVersion(apiLevel: String): String {
+        return when (apiLevel) {
+            "36" -> "16"
+            "35" -> "15"
+            "34" -> "14"
+            "33" -> "13"
+            "32" -> "12" // 12L usually, but 12 is fine
+            "31" -> "12"
+            "30" -> "11"
+            "29" -> "10"
+            "28" -> "9"
+            else -> "?"
+        }
     }
 
     private suspend fun loadAndroidResults(token: String?, currentTable: TableData?): TableData {
@@ -90,7 +198,7 @@ class TestResultsRepository(
     }
 
     private suspend fun loadIosResults(token: String?, currentTable: TableData?): TableData {
-        val owner = "brandonpage"
+        val owner = "forcedotcom"
         val repo = "SalesforceMobileSDK-iOS"
         val targetLibraries = listOf(
             "SalesforceAnalytics",
@@ -202,4 +310,3 @@ class TestResultsRepository(
         return (match?.groups?.get(1)?.value ?: match?.groups?.get(2)?.value)?.toIntOrNull()
     }
 }
-

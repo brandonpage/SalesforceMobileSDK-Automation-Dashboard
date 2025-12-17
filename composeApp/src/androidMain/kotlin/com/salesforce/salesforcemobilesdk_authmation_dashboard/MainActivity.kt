@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
 
 import com.salesforce.salesforcemobilesdk_authmation_dashboard.manager.TokenManager
+import com.salesforce.salesforcemobilesdk_authmation_dashboard.manager.StateManager
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -15,6 +16,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         
         TokenManager.init(applicationContext)
+        StateManager.init(applicationContext)
 
         setContent {
             App()
