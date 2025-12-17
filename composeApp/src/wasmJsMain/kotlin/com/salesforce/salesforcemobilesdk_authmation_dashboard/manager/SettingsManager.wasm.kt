@@ -8,4 +8,12 @@ actual object SettingsManager {
     actual fun getThemeMode(): Boolean? {
         return null
     }
+
+    actual fun saveWindowSize(width: Int, height: Int) {
+        // Not implemented
+    }
+
+    actual fun getWindowWidth(): Int? = null
+
+    actual fun getWindowHeight(): Int? = null
 }

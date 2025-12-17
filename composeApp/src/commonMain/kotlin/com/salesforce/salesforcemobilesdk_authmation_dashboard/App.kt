@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -260,46 +261,50 @@ fun App() {
                         }
                     } else {
                         dashboardState?.let { state ->
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .verticalScroll(rememberScrollState())
-                            ) {
-                                state.combinedResults?.let { table ->
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(bottom = 8.dp)
-                                    ) {
-                                        Text(
-                                            text = "Unit Test Results",
-                                            style = MaterialTheme.typography.titleLarge
-                                        )
-                                        if (table.status == "in_progress" || table.status == "queued") {
-                                            Spacer(modifier = Modifier.width(12.dp))
-                                            CircularProgressIndicator(
-                                                modifier = Modifier.size(16.dp),
-                                                strokeWidth = 2.dp
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
+                            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                                val availableWidth = maxWidth
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .verticalScroll(rememberScrollState())
+                                ) {
+                                    state.combinedResults?.let { table ->
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(bottom = 8.dp)
+                                        ) {
                                             Text(
-                                                "Run In Progress...",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.primary
+                                                text = "Unit Test Results",
+                                                style = MaterialTheme.typography.titleLarge
                                             )
-                                        }
-                                    }
-                                    DashboardGrid(
-                                        table,
-                                        isDarkTheme = useDarkTheme,
-                                        onCellClick = { cell ->
-                                            if (!cell.isSuccess) {
-                                                selectedCell = cell
+                                            if (table.status == "in_progress" || table.status == "queued") {
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(16.dp),
+                                                    strokeWidth = 2.dp
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    "Run In Progress...",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
                                             }
-                                        })
-                                    Spacer(modifier = Modifier.height(24.dp))
-                                }
+                                        }
+                                        DashboardGrid(
+                                            table,
+                                            isDarkTheme = useDarkTheme,
+                                            availableWidth = availableWidth,
+                                            onCellClick = { cell ->
+                                                if (!cell.isSuccess) {
+                                                    selectedCell = cell
+                                                }
+                                            })
+                                        Spacer(modifier = Modifier.height(24.dp))
+                                    }
 
-                                Spacer(modifier = Modifier.height(50.dp)) // Bottom padding
+                                    Spacer(modifier = Modifier.height(50.dp)) // Bottom padding
+                                }
                             }
                         }
                     }
@@ -344,8 +349,17 @@ fun App() {
     }
 
     @Composable
-    fun DashboardGrid(tableData: TableData, isDarkTheme: Boolean, onCellClick: (CellData) -> Unit) {
-        val cellWidth = 100.dp
+    fun DashboardGrid(tableData: TableData, isDarkTheme: Boolean, availableWidth: androidx.compose.ui.unit.Dp, onCellClick: (CellData) -> Unit) {
+        val headerColumnWidth = 150.dp
+        val separatorWidth = 24.dp
+        val numSeparators = tableData.columns.count { it == "SEPARATOR" }
+        val numDataColumns = tableData.columns.size - numSeparators
+        
+        // Calculate cell width to fit available space
+        val totalSeparatorWidth = separatorWidth * numSeparators
+        val availableForCells = availableWidth - headerColumnWidth - totalSeparatorWidth
+        val cellWidth = (availableForCells / numDataColumns).coerceAtLeast(100.dp)
+        
         val cellHeight = 60.dp
         val headerColor = MaterialTheme.colorScheme.surfaceVariant
         val borderColor = MaterialTheme.colorScheme.outline

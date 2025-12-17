@@ -21,4 +21,12 @@ actual object SettingsManager {
             null
         }
     }
+
+    actual fun saveWindowSize(width: Int, height: Int) {
+        // Not applicable for Android
+    }
+
+    actual fun getWindowWidth(): Int? = null
+
+    actual fun getWindowHeight(): Int? = null
 }

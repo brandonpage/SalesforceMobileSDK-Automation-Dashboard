@@ -34,4 +34,46 @@ actual object SettingsManager {
             null
         }
     }
+
+    actual fun saveWindowSize(width: Int, height: Int) {
+        val props = Properties()
+        if (settingsFile.exists()) {
+            try {
+                settingsFile.inputStream().use { props.load(it) }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        props.setProperty("window_width", width.toString())
+        props.setProperty("window_height", height.toString())
+        try {
+            settingsFile.outputStream().use { props.store(it, "Dashboard Settings") }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    actual fun getWindowWidth(): Int? {
+        if (!settingsFile.exists()) return null
+        val props = Properties()
+        return try {
+            settingsFile.inputStream().use { props.load(it) }
+            props.getProperty("window_width")?.toIntOrNull()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    actual fun getWindowHeight(): Int? {
+        if (!settingsFile.exists()) return null
+        val props = Properties()
+        return try {
+            settingsFile.inputStream().use { props.load(it) }
+            props.getProperty("window_height")?.toIntOrNull()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
 }
