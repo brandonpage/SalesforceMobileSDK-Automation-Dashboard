@@ -131,17 +131,22 @@ class TestResultsRepository(
     }
 
     private fun getAndroidVersion(apiLevel: String): String {
-        return when (apiLevel) {
-            "36" -> "16"
-            "35" -> "15"
-            "34" -> "14"
-            "33" -> "13"
-            "32" -> "12" // 12L usually, but 12 is fine
-            "31" -> "12"
-            "30" -> "11"
-            "29" -> "10"
-            "28" -> "9"
-            else -> "?"
+        val apiInt = apiLevel.toIntOrNull() ?: return "?"
+        
+        // API 33+ follows pattern: Android Version = API Level - 20
+        // (API 33 = Android 13, API 34 = Android 14, etc.)
+        return if (apiInt >= 33) {
+            (apiInt - 20).toString()
+        } else {
+            // Legacy mappings for older API levels with inconsistent patterns
+            when (apiLevel) {
+                "32" -> "12L"
+                "31" -> "12"
+                "30" -> "11"
+                "29" -> "10"
+                "28" -> "9"
+                else -> "?"
+            }
         }
     }
 
@@ -156,7 +161,6 @@ class TestResultsRepository(
             "SalesforceHybrid",
             "SalesforceReact"
         )
-        val apiLevels = (28..36).toList().map { it.toString() }
         
         val (runId, runStatus, artifacts) = getNightlyRunAndArtifacts(owner, repo, token)
         
@@ -167,8 +171,30 @@ class TestResultsRepository(
              return currentTable
         }
 
+        // Dynamically discover API levels from artifacts
+        val discoveredApiLevels = mutableSetOf<String>()
+        artifacts.forEach { artifact ->
+            val libraryName = targetLibraries.find { artifact.name.equals("test-results-$it", ignoreCase = true) }
+            if (libraryName != null) {
+                try {
+                    val files = artifactRepository.downloadAndExtractArtifact(owner, repo, artifact.id, token)
+                    files.keys.filter { it.endsWith(".xml") }.forEach { filename ->
+                        parseApiLevelFromFilename(filename)?.toString()?.let { apiLevel ->
+                            discoveredApiLevels.add(apiLevel)
+                        }
+                    }
+                } catch (e: Exception) {
+                    println("Failed to scan artifact ${artifact.name}: ${e.message}")
+                }
+            }
+        }
+        
+        val apiLevels = discoveredApiLevels.sorted()
+        println("Discovered Android API levels: $apiLevels")
+        
         val resultsMap = createEmptyResultsMap(targetLibraries, apiLevels)
         
+        // Process artifacts again to populate results (reusing cached downloads where possible)
         artifacts.forEach { artifact ->
             val libraryName = targetLibraries.find { artifact.name.equals("test-results-$it", ignoreCase = true) }
             if (libraryName != null) {
@@ -202,7 +228,6 @@ class TestResultsRepository(
             "SmartStore",
             "MobileSync"
         )
-        val versions = listOf("17", "18", "26")
         
         val (runId, runStatus, artifacts) = getNightlyRunAndArtifacts(owner, repo, token)
 
@@ -213,6 +238,15 @@ class TestResultsRepository(
              return currentTable
         }
 
+        // Dynamically discover iOS versions from artifact names
+        val regex = Regex("test-results-(.+)-ios\\^(.+)")
+        val discoveredVersions = artifacts.mapNotNull { artifact ->
+            regex.find(artifact.name)?.groupValues?.get(2)
+        }.distinct().sorted()
+        
+        val versions = discoveredVersions.ifEmpty { listOf("17", "18") } // Fallback if no artifacts found
+        println("Discovered iOS versions: $versions")
+        
         val resultsMap = createEmptyResultsMap(targetLibraries, versions)
         
         artifacts.forEach { artifact ->

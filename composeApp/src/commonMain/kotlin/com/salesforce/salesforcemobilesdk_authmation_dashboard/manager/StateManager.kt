@@ -5,4 +5,5 @@ import com.salesforce.salesforcemobilesdk_authmation_dashboard.model.DashboardSt
 expect object StateManager {
     fun saveState(state: DashboardState)
     fun loadState(): DashboardState?
+    fun clearState()
 }

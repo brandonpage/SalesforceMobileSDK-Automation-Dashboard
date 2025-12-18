@@ -13,4 +13,9 @@ actual object StateManager {
         println("StateManager.loadState not implemented for Wasm")
         return null
     }
+
+    actual fun clearState() {
+        // TODO: Implement Wasm state clearing
+        println("StateManager.clearState not implemented for Wasm")
+    }
 }

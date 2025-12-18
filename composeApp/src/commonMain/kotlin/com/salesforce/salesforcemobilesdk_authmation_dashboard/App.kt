@@ -222,6 +222,7 @@ fun App() {
                             Spacer(modifier = Modifier.width(16.dp))
                             Button(onClick = {
                                 TokenManager.clearToken()
+                                StateManager.clearState()
                                 isTokenSaved = false
                                 githubToken = ""
                                 dashboardState = null

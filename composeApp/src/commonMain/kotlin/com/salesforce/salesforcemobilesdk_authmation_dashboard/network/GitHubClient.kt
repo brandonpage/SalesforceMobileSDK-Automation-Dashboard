@@ -68,7 +68,6 @@ class GitHubClient(private val httpClient: HttpClient) {
         val cleanToken = token?.let { cleanToken(it) }
         
         println("Downloading artifact from: $url")
-        println("Token provided: ${if (cleanToken.isNullOrBlank()) "NO" else "YES (Length: ${cleanToken.length})"}")
         
         // Initial request to GitHub API
         val response = httpClient.get(url) {

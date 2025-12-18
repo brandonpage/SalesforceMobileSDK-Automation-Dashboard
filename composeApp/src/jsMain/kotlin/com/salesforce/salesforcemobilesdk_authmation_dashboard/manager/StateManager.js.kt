@@ -13,4 +13,9 @@ actual object StateManager {
         println("StateManager.loadState not implemented for JS")
         return null
     }
+
+    actual fun clearState() {
+        // TODO: Implement JS state clearing
+        println("StateManager.clearState not implemented for JS")
+    }
 }

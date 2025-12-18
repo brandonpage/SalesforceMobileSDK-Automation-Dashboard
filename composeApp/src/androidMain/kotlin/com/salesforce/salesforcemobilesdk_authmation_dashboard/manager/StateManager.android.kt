@@ -47,4 +47,16 @@ actual object StateManager {
             null
         }
     }
+
+    actual fun clearState() {
+        val ctx = context ?: return
+        try {
+            val file = File(ctx.filesDir, "dashboard_state.json")
+            if (file.exists()) {
+                file.delete()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 }

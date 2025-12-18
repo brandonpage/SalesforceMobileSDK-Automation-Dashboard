@@ -39,4 +39,14 @@ actual object StateManager {
             null
         }
     }
+
+    actual fun clearState() {
+        try {
+            if (stateFile.exists()) {
+                stateFile.delete()
+            }
+        } catch (e: Exception) {
+            println("Failed to clear state: ${e.message}")
+        }
+    }
 }

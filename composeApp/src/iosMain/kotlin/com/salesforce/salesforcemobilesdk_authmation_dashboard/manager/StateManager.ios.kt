@@ -13,4 +13,9 @@ actual object StateManager {
         println("StateManager.loadState not implemented for iOS")
         return null
     }
+
+    actual fun clearState() {
+        // TODO: Implement iOS state clearing
+        println("StateManager.clearState not implemented for iOS")
+    }
 }
