@@ -17,4 +17,10 @@ actual object TokenManager {
             null
         }
     }
+
+    actual fun clearToken() {
+        if (tokenFile.exists()) {
+            tokenFile.delete()
+        }
+    }
 }

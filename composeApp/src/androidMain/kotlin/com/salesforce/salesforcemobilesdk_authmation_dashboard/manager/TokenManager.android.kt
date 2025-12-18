@@ -17,4 +17,8 @@ actual object TokenManager {
     actual fun getToken(): String? {
         return sharedPreferences?.getString("github_token", null)
     }
+
+    actual fun clearToken() {
+        sharedPreferences?.edit()?.remove("github_token")?.apply()
+    }
 }

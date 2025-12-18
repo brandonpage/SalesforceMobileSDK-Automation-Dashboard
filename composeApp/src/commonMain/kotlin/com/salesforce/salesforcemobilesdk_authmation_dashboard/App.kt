@@ -219,6 +219,16 @@ fun App() {
                                 checked = isAutoRefreshEnabled,
                                 onCheckedChange = { isAutoRefreshEnabled = it }
                             )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Button(onClick = {
+                                TokenManager.clearToken()
+                                isTokenSaved = false
+                                githubToken = ""
+                                dashboardState = null
+                                errorMessage = null
+                            }) {
+                                Text("Remove Token")
+                            }
                         }
                     }
                 }
@@ -230,15 +240,26 @@ fun App() {
                         onSave = {
                             if (githubToken.isNotBlank()) {
                                 TokenManager.saveToken(githubToken)
+                                isLoading = true
+                                errorMessage = null
                                 isTokenSaved = true
                             }
                         }
                     )
                 } else {
                     if (isLoading) {
-                        CircularProgressIndicator()
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("Fetching latest Nightly run results...")
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(48.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                "Fetching latest Nightly run results...",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
                     } else if (errorMessage != null) {
                         Text("Error: $errorMessage", color = MaterialTheme.colorScheme.error)
                         Spacer(modifier = Modifier.height(16.dp))
@@ -331,7 +352,7 @@ fun App() {
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Welcome! Please enter your GitHub Personal Access Token to continue.  No permissions are required.")
+            Text("Please enter your GitHub Personal Access Token to continue.  No permissions are required.")
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = token,
